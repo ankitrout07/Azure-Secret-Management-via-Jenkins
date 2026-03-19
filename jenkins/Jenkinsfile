@@ -1,0 +1,29 @@
+pipeline {
+    agent any
+    environment {
+        // Point this to your NTZ-LINUX-003 IP or localhost
+        VAULT_ADDR = 'http://127.0.0.1:8200'
+    }
+    stages {
+        stage('Vault Auth & Terraform') {
+            steps {
+                // 'vault-approle-id' must match the ID you create in Jenkins Credentials UI
+                withVault([configuration: [vaultUrl: "${env.VAULT_ADDR}"],
+                           vaultSecrets: [[path: 'internal/azure-creds', engineVersion: 2,
+                                           secretValues: [
+                                               [envVar: 'ARM_CLIENT_ID', vaultKey: 'client_id'],
+                                               [envVar: 'ARM_CLIENT_SECRET', vaultKey: 'client_secret'],
+                                               [envVar: 'ARM_SUBSCRIPTION_ID', vaultKey: 'subscription_id'],
+                                               [envVar: 'ARM_TENANT_ID', vaultKey: 'tenant_id']
+                                           ]]]]) {
+                    sh '''
+                        echo "Secrets loaded into environment variables safely."
+                        cd terraform
+                        terraform init
+                        terraform plan
+                    '''
+                }
+            }
+        }
+    }
+}
