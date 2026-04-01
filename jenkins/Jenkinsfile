@@ -1,29 +1,54 @@
 pipeline {
-    agent any
+    // 1. Target the specific Worker Node instead of 'any'
+    agent { label 'terraform-runner' } 
+
     environment {
-        // Point this to your NTZ-LINUX-003 IP or localhost
+        // Point this to your NTZ-LINUX-003 IP (not localhost if Agent is a separate VM)
         VAULT_ADDR = 'http://127.0.0.1:8200'
     }
+
     stages {
+        stage('Initialize Agent') {
+            steps {
+                sh '''
+                    echo "Job assigned to Agent: $(hostname)"
+                    terraform --version
+                '''
+            }
+        }
+
         stage('Vault Auth & Terraform') {
             steps {
-                // 'vault-approle-id' must match the ID you create in Jenkins Credentials UI
-                withVault([configuration: [vaultUrl: "${env.VAULT_ADDR}"],
-                           vaultSecrets: [[path: 'internal/azure-creds', engineVersion: 2,
-                                           secretValues: [
-                                               [envVar: 'ARM_CLIENT_ID', vaultKey: 'client_id'],
-                                               [envVar: 'ARM_CLIENT_SECRET', vaultKey: 'client_secret'],
-                                               [envVar: 'ARM_SUBSCRIPTION_ID', vaultKey: 'subscription_id'],
-                                               [envVar: 'ARM_TENANT_ID', vaultKey: 'tenant_id']
-                                           ]]]]) {
+                // Ensure 'vault-approle-id' is created in Jenkins Global Credentials
+                withVault([
+                    configuration: [vaultUrl: "${env.VAULT_ADDR}"],
+                    vaultSecrets: [[
+                        path: 'internal/azure-creds', 
+                        engineVersion: 2,
+                        secretValues: [
+                            [envVar: 'ARM_CLIENT_ID', vaultKey: 'client_id'],
+                            [envVar: 'ARM_CLIENT_SECRET', vaultKey: 'client_secret'],
+                            [envVar: 'ARM_SUBSCRIPTION_ID', vaultKey: 'subscription_id'],
+                            [envVar: 'ARM_TENANT_ID', vaultKey: 'tenant_id']
+                        ]
+                    ]]
+                ]) {
                     sh '''
-                        echo "Secrets loaded into environment variables safely."
+                        echo "Secrets securely injected from Vault."
                         cd terraform
                         terraform init
                         terraform plan
                     '''
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            // 2. Best Practice: Clean the workspace so secrets don't persist in files
+            deleteDir()
+            echo "Workspace cleaned on Agent."
         }
     }
 }
