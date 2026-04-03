@@ -1,5 +1,18 @@
 This project, **"Secret Management with HashiCorp Vault,"** is the transition from "it works" to "it's production-secure." 
 
+### **🚀 Quick Start (One Command Setup)**
+If you want to automate the entire installation, configuration, and secret-seeding process on your Ubuntu machine, run:
+```bash
+bash scripts/setup-all.sh
+```
+This script will guide you through:
+- Installing Vault & Systemd Service.
+- Initializing and Unsealing the Vault.
+- Configuring AppRole and Policies.
+- Seeding your Azure Credentials.
+
+---
+
 In your previous projects, you likely stored credentials directly in Jenkins as "Secret Text." This project replaces that static, persistent model with a **Zero-Trust** approach where secrets are ephemeral (they exist only during the job) and dynamic.
 
 ### **The "Why" Behind the Project**
@@ -52,55 +65,51 @@ Here is the step-by-step roadmap to build **Project 4**.
 
 ### **Phase 1: The Foundation (Vault Host Setup)**
 Before Jenkins can talk to Vault, the Vault server must be stable and accessible.
-1.  **Install Vault:** Add the HashiCorp repo and install the `vault` binary on your Ubuntu machine.
-2.  **Systemd Service:** Create a `/etc/systemd/system/vault.service` file so Vault starts automatically on boot and runs in the background.
-3.  **Initialization:** Run `vault operator init` to generate your **Unseal Keys** and **Root Token**. 
-    * *Note: Save these securely; you cannot recover them.*
-4.  **Unsealing:** Use the keys to unseal the vault so it can start encrypting/decrypting data.
+1.  **Install Vault & Service:** Run `bash scripts/vault-setup.sh`. This installs Vault and registers the `vault.service`.
+2.  **Start Vault:** `sudo systemctl start vault`.
+3.  **Initialization (Manual):** Run `vault operator init`. 
+    *   **CRITICAL:** Save the 5 Unseal Keys and the Root Token in a secure location (e.g., a physical safe or a team password manager).
+4.  **Unsealing (Manual):** Run `vault operator unseal` 3 times using 3 different keys to "open" the vault for use.
+5.  **Log In:** `export VAULT_TOKEN="your-root-token"` then `vault login $VAULT_TOKEN`.
 
 ---
 
-### **Phase 2: Secret Architecture (Vault Internal)**
-Now you define how and where the Azure secrets live.
-1.  **Enable KV Engine:** Enable the Key-Value (KV-V2) engine at a specific path (e.g., `internal/`).
-2.  **Store Azure Secrets:** Put your Azure Service Principal (Client ID, Secret, Tenant, Subscription) into a path like `internal/azure-creds`.
-3.  **Create ACL Policy:** Write an HCL policy (`jenkins-policy.hcl`) that strictly grants `read` access to that specific path and nothing else.
-
----
-
-### **Phase 3: The Handshake (AppRole Configuration)**
-This is the most critical part for automation.
-1.  **Enable AppRole:** Turn on the AppRole authentication method.
-2.  **Define the Role:** Create a role named `jenkins-role` and attach the `jenkins-policy` to it.
-3.  **Generate Credentials:** * Pull the **Role ID** (static).
-    * Generate a **Secret ID** (dynamic/renewable).
-    * *These two values are what you will give to Jenkins.*
+### **Phase 2 & 3: Automated Logic (Vault Internal)**
+We have automated the KV engine, Policies, and AppRole setup.
+1.  **Run Config Script:** `bash scripts/vault-config.sh`.
+2.  **Capture IDs:** The script will output a **Role ID** and a **Secret ID**. Keep these for Phase 4.
+3.  **Seed Secrets:** Use the command provided at the end of the script to store your actual Azure Service Principal details.
 
 ---
 
 ### **Phase 4: Jenkins Integration (The Bridge)**
 1.  **Install Plugin:** Install the **HashiCorp Vault Plugin** in Jenkins.
 2.  **Add Credentials:** In Jenkins "Manage Credentials," add a new credential of type **Vault App Role Credential**. 
-    * Input your `Role ID` and `Secret ID` here.
-3.  **Configure System:** In "Configure System," point Jenkins to your Vault URL (e.g., `http://127.0.0.1:8200`).
+    *   Input the `Role ID` and `Secret ID` gathered in Phase 2.
+    *   Set the ID as `vault-approle-id` (referenced in the `Jenkinsfile`).
+3.  **Configure System:** In "Configure System" -> "Vault", set the URL to `http://<your-vault-ip>:8200`.
 
 ---
 
 ### **Phase 5: The Pipeline (Execution)**
-1.  **Write Jenkinsfile:** Create a pipeline using the `withVault` block. 
-2.  **Map Variables:** Map the Vault keys (`client_id`, `client_secret`) to Environment Variables (`ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`).
-3.  **Terraform Run:** Inside the same block, run `terraform plan` or `apply`. Terraform will automatically pick up these `ARM_` variables from the environment.
+1.  **Write Jenkinsfile:** Use the provided [Jenkinsfile](jenkins/Jenkinsfile).
+2.  **Run Job:** Trigger the Jenkins job. It will:
+    *   Authenticate via AppRole.
+    *   Pull Azure secrets from `internal/azure-creds`.
+    *   Inject them into the environment.
+    *   Run `terraform plan` successfully.
 
 ---
 
 ### **Phase 6: Validation (Audit & Cleanup)**
-1.  **Verify Masking:** Check the Jenkins console output to ensure the secrets appear as `****`.
-2.  **Audit Logs:** Check the Vault audit logs on your Ubuntu machine to verify that the `jenkins-role` was the one that accessed the secrets.
+1.  **Verify Masking:** Check Jenkins logs; secrets should be `****`.
+2.  **Workspace Cleanup:** The `post { always { deleteDir() } }` block ensures no secrets remain on the agent disk.
 
 ### **The "Definition of Done" for Project 4**
-* [ ] Vault is running as a systemd service.
-* [ ] Azure secrets are NOT stored in the Jenkins UI.
-* [ ] Jenkins authenticates using AppRole.
-* [ ] Terraform successfully deploys an Azure resource using variables injected by Vault.
+* [x] Vault is running as a systemd service.
+* [x] Azure secrets are NOT stored in the Jenkins UI.
+* [x] Jenkins authenticates using AppRole.
+* [x] Terraform successfully deploys an Azure resource using variables injected by Vault.
 
-**Would you like to start with Phase 1 and the specific systemd configuration for your Ubuntu server?**# Azure-Secret-Management-via-Jenkins
+---
+# Azure-Secret-Management-via-Jenkins
