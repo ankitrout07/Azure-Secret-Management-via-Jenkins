@@ -1,5 +1,10 @@
 pipeline {
-    agent { label 'terraform-runner' }
+    agent {
+        node {
+            label 'terraform-runner'
+            customWorkspace '/home/ankit/git/Azure Secret Management Via Jenkins'
+        }
+    }
 
     stages {
         stage('Vault Secret Retrieval') {
