@@ -1,0 +1,52 @@
+# Terraform
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.*
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+*.tfvars
+*.tfvars.json
+plan.tfplan
+
+# IDE and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.sublime-workspace
+*.sublime-project
+
+# Vault
+vault/data/
+vault/logs/
+vault/config/local.hcl
+.vault-token
+
+# Jenkins
+.jenkins/
+target/
+*.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# OS files
+*.pid
+*.sock
+
+# Local scripts
+.aws/
+.azure/
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
